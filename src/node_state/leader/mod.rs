@@ -120,6 +120,7 @@ impl<IO: Io> Leader<IO> {
         self.followers.latest_hearbeat_ack()
     }
 
+    #[allow(clippy::unnecessary_wraps)]
     fn handle_change_config(&mut self, common: &mut Common<IO>) -> Result<()> {
         if common.config().state().is_stable() {
             return Ok(());
