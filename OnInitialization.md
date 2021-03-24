@@ -114,3 +114,22 @@ suffix = LogSuffix {
 
 `suffix`側はinitializeで採用した値が使われているが、一方で`common.log`側では謎のエントリが設定されていることになる。
 次はこれがどこから現れるかを調べる必要がある。
+
+これは
+1. https://github.com/yuezato/raftlog2/blob/main/src/node_state/mod.rs#L37
+2. https://github.com/yuezato/raftlog2/blob/main/src/node_state/common/mod.rs#L48
+3. https://github.com/yuezato/raftlog2/blob/main/src/log/history.rs#L32
+という処理の流れによって生じることが（追跡すると）分かる。
+
+なぜか空リストではなくサイズ1のリストを作っているが、このようにした理由はどこにも記載されていない。
+
+# どのようにすれば良いか?
+https://github.com/yuezato/raftlog2/blob/740555c5842be639590ecc31d647c24bdc33832b/src/log/history.rs#L26-L34
+
+`records`の初期値を「非常に好意的に」解釈するならば、（古いプログラミングの本で言うところの）番兵ということになるが、
+このように考えたとしてもtail値が既に存在するフィールドを指していることは理解できない。
+というのは、（これも太田さんがどうしたかったのかわからないが）tail値たちはexclusive rangeを取るようで、例えば
+`appended_tail`というのは`[0, appended_tail)`のrangeをもってその意味を成すということになる。
+こう考えると、初期化では`appended_tail = LogPosiiton::default() + 1`のようにしなくてはならない。
+
+ならないのだが、そうなっていない。
