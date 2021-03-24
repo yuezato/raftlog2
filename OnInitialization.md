@@ -136,3 +136,14 @@ https://github.com/yuezato/raftlog2/blob/740555c5842be639590ecc31d647c24bdc33832
 
 こう考えると、初期化では`appended_tail = LogPosiiton::default() + 1`のようにしなくてはならない。
 ならないのだが、そうなっていない。
+
+まず気にするべき点は、読み込むべきデータがなにもない場合の(Termではなく)Indexはどうするかという点である。
+https://github.com/frugalos/frugalos/blob/bdb58d47ef50e5f7038bdce4b6cd31736260d6e8/frugalos_raft/src/storage/mod.rs#L112-L164
+
+この辺のコードを読むと、Indexは0開始で問題がなさそうということになる。
+
+これが仮定出来ると必然的にTermは0に *するしかない* ため、結果的にこれを使うことと同じことになる。
+https://github.com/yuezato/raftlog2/blob/05ca296b91954b91f1ebcdd4d9c55e0b2177ab13/src/log/mod.rs#L161-L168
+
+「するしかない」というのは論理的な帰結ではなく、こうしないとpanicして全く使い物にならないからということであって、
+状況としては非常に悪い。
