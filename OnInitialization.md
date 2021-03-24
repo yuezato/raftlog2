@@ -128,8 +128,11 @@ https://github.com/yuezato/raftlog2/blob/740555c5842be639590ecc31d647c24bdc33832
 
 `records`の初期値を「非常に好意的に」解釈するならば、（古いプログラミングの本で言うところの）番兵ということになるが、
 このように考えたとしてもtail値が既に存在するフィールドを指していることは理解できない。
+
 というのは、（これも太田さんがどうしたかったのかわからないが）tail値たちはexclusive rangeを取るようで、例えば
 `appended_tail`というのは`[0, appended_tail)`のrangeをもってその意味を成すということになる。
-こう考えると、初期化では`appended_tail = LogPosiiton::default() + 1`のようにしなくてはならない。
+そのように判断して良い理由はこの箇所にある
+https://github.com/yuezato/raftlog2/blob/740555c5842be639590ecc31d647c24bdc33832b/src/log/history.rs#L82
 
+こう考えると、初期化では`appended_tail = LogPosiiton::default() + 1`のようにしなくてはならない。
 ならないのだが、そうなっていない。
