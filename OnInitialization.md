@@ -65,46 +65,46 @@ https://github.com/yuezato/raftlog2/blob/f217ab3d3f28f1426c2212a937be5527753aafb
 ```
 commong.log = records: [
         HistoryRecord {
-            head: LogPosition {
-                prev_term: Term(
-                    0,
-                ),
-                index: LogIndex(
-                    0,
-                ),
-            },
-            config: ClusterConfig {
-                new: {
-                    NodeId(
-                        "nodeA",
-                    ),
-                    NodeId(
-                        "nodeB",
-                    ),
-                },
-                old: {},
-                state: Stable,
-            },
-        },
-    ],
-}
-
-suffix = LogSuffix {
-    entries: [
-        Noop {
-            term: Term(
-                2,
-            ),
-        },
-    ],
-    head: LogPosition {
-        prev_term: Term(
-            255,
-        ),
-        index: LogIndex(
-            0,
-        ),
-    },
+            head: LogPosition {             |
+                prev_term: Term(            |
+                    0,                      |
+                ),                          | <-----+
+                index: LogIndex(            |       | 
+                    0,                      |       | 
+                ),                          |       | 
+            },                              |       | 
+            config: ClusterConfig {                 |
+                new: {                              |
+                    NodeId(                         |
+                        "nodeA",                    |
+                    ),                              |
+                    NodeId(                         |
+                        "nodeB",                    |
+                    ),                              |
+                },                                  |
+                old: {},                            |
+                state: Stable,                      |
+            },                                      |
+        },                                          |
+    ],                                              |
+}                                                   |
+                                                    |
+suffix = LogSuffix {                                |
+    entries: [                                      |
+        Noop {                                      |
+            term: Term(                             |
+                2,                                  |
+            ),                                      |
+        },                                          |
+    ],                                              |
+    head: LogPosition {      |                      |
+        prev_term: Term(     |                      |
+            255,             |                      |
+        ),                   |                      |
+        index: LogIndex(     |<---------------------+
+            0,               |
+        ),                   |
+    },                       |
 }
 ```
 
