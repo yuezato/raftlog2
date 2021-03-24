@@ -61,6 +61,56 @@ stack backtrace:
 先頭Termを「非ゼロ」にすると、この部分でアンダーフローが生じてしまう。
 https://github.com/yuezato/raftlog2/blob/f217ab3d3f28f1426c2212a937be5527753aafb7/src/node_state/follower/idle.rs#L122-L125
 
-# どうすれば解決できるか?
-「現状では」ロードすることのできるデータがない場合は、当該箇所に「ゼロ値」採用することになる。
-次に問題になるのは、なぜ「ゼロ値」なら問題がないかということである。
+より正確に言うならば、
+```
+commong.log = records: [
+        HistoryRecord {
+            head: LogPosition {
+                prev_term: Term(
+                    0,
+                ),
+                index: LogIndex(
+                    0,
+                ),
+            },
+            config: ClusterConfig {
+                new: {
+                    NodeId(
+                        "nodeA",
+                    ),
+                    NodeId(
+                        "nodeB",
+                    ),
+                },
+                old: {},
+                state: Stable,
+            },
+        },
+    ],
+}
+
+suffix = LogSuffix {
+    entries: [
+        Noop {
+            term: Term(
+                2,
+            ),
+        },
+    ],
+    head: LogPosition {
+        prev_term: Term(
+            255,
+        ),
+        index: LogIndex(
+            0,
+        ),
+    },
+}
+```
+
+によって上の問題が生じることが分かる。 `common.log` 側ではなぜか先頭に `prev_term = 0` のエントリが存在しているが、
+`suffix`側では先頭に `prev_term = 255` のエントリが存在している。
+この食い違いが問題を産んでいる。
+
+`suffix`側はinitializeで採用した値が使われているが、一方で`common.log`側では謎のエントリが設定されていることになる。
+次はこれがどこから現れるかを調べる必要がある。
