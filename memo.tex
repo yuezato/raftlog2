@@ -1,0 +1,216 @@
+\documentclass[sigconf,nonacm]{acmart}
+
+% \usepackage{amsmath, amssymb}
+\usepackage{scalerel}
+\usepackage{color}
+\newcommand{\red}[1]{{\color{red}#1}}
+
+\def\mcirc{\mathord{\scalerel*{\bigcirc}{t}}}
+
+\DeclareSymbolFont{symbolsC}{U}{pxsyc}{m}{n}
+\DeclareMathSymbol{\coloneq}{\mathrel}{symbolsC}{"42}
+
+\usepackage{CJKutf8}
+\newcommand*{\Ja}[1]{\begin{CJK}{UTF8}{ipxm}#1\end{CJK}}
+
+\title{Formalizing Raft by Modal Logic}
+\author{Yuya Uezato}
+
+\begin{document}
+
+\begin{abstract}
+Informal Note
+\end{abstract}
+
+\maketitle
+
+\section{Rough Idea}
+
+We borrow the notation from modal logic.
+At this time, unfortunately, it is not unclear that we also borrow the results from modal logic.
+
+We want to write the following statement (on our transition system defined below):
+\[
+(\text{Leader} \land \text{Commit}(A)) \to \Box(\text{Leader} \to \text{Commit}(A))
+\]
+Modal operators are useful to write properties on transition systems.
+
+\section{Transition Systems}
+
+\paragraph{Transition System for Raft Cluster}
+\begin{description}
+\item[Halt node] For $(A, \mathit{queue}) \in \mathcal{C}$,
+\[
+A \overset{\text{halt}}{\mapsto} (\tilde{A}, \mathit{queue}).
+\]
+%
+\item[Revole node] For $(\tilde{A}, \mathit{queue}) \in \mathcal{C}$,
+\[
+\tilde{A} \overset{\text{revoke}}{\mapsto} (A, \mathit{queue}).
+\]
+%
+\item[Add user data to leader] For $(\hat{L}, \mathit{queue}) \in \mathcal{C}$,
+\[
+(A, \mathit{q}) \overset{\text{+user data}\ x}{\mapsto} (A, \mathit{queue}\,x).
+\]
+%
+\item[Send log to follower] For $(\hat{L}, \mathit{queue}) \in \mathcal{C}$,
+\[
+(A, \mathit{q}) \overset{\text{append log}}{\mapsto} (A, \mathit{queue} \wr \mathit{q} ).
+\]
+(Incorrect; it should be a partial update)
+%
+\item[(Unconditioned) Election] If there is no leader in $\mathcal{C}$, we choose some one as the leader $(A, \mathit{que}) \to (\hat{A}, \mathit{que})$.
+%
+\item[Ack to User] Can we answer users question: what is the value of a key $K$.
+I think we need to introduce some tool to divide uncommitted and commited data.
+\end{description}
+
+What happens if writing from the leader to followers fails majority.
+Since we do not assume simultaneous writing, there is no problem??
+
+\paragraph{Transition System for Raft Manager}
+\[
+\begin{array}{ccc}
+\mathcal{K}  & \xrightarrow{ \text{command}_n } & \mathcal{K'} \\
+\downarrow_{\text{snd}_{n}} & & \uparrow_{\text{ack}_n} \\
+\mathcal{C} & \to \cdots \to & \mathcal{C'}
+\end{array}
+\]
+
+\red{Can we put a data before the previous one is acked?}
+
+\subsection{Our Desirable Property}
+\paragraph{At most one leader}
+\[
+\hat{A}, \hat{B} \in \mathcal{C} \to A = B.
+\]
+
+\paragraph{Once committed, never will lost}
+\[
+(k, v) \in M \to \mcirc((k, v) \in M)
+\]
+If we can prove the above on all worlds, it implies $(k, v) \in M \to \mcirc^n (k, v) \in M$.
+
+\[
+(K, V) \in \text{Leader} \to \Box^*(\text{LeaderIs} \implies K \in \text{Leader})
+\]
+
+\subsection{Election for One Leader}
+\[
+L_1, L_2 \in \mathcal{C} \to L_1 = L_2.
+\]
+
+\paragraph{Counter Example:}
+\[
+\begin{array}{l}
+A: \epsilon \\
+B: \epsilon
+\end{array} \to
+\begin{array}{l}
+\hat{A}: \epsilon \\
+B: \epsilon
+\end{array} \to
+\begin{array}{l}
+\hat{A}: \epsilon \\
+\hat{B}: \epsilon
+\end{array}
+\]
+
+\paragraph{How to Remedy:}
+\mbox{}
+
+\Ja{
+ここで既にleaderがいるならなれない、
+というような全体知識にアクセスする方法はとれない。
+とはいえ後発を受け入れようとすると
+leaderの取り合いになって計算が進まない。
+%
+Termを入れても結局ひたすらincrementされると爆発するしなあ。
+%
+久しぶりに復帰したノードが構成状況知るためには
+Termみたいなのが必要になるのかな。Termはやはり必要??
+%
+でもcommit長みれば分かりそうなもんだけど
+%
+Leaderからの情報を受け付けるbufferと、
+誰でも用のbufferの2-level bufferが必要で、
+後者をoptimizeするとTermになるのかな（stackがcounterのenrichみたいな感じで）
+}
+
+\subsection{OK: Existence of Multiple (Local) Leaders}
+\mbox{}
+\Ja{
+自分のことをleaderだと思いこんでいるノードが複数あるのは問題がない。
+}
+
+\subsection{Bad: Broadcasting data from Multiple Leaders}
+\mbox{}
+\Ja{
+存在するところまでは別に問題ないが、データを配られてackされるとまずい。
+%
+例えば $\hat{n}_1 \xrightarrow{x} n_2$ でack来た後に$x$を外にackして、
+一方で$\hat{n}_3$にqueryが来て、$x$は無いと答えられると不味い。
+%
+でもこれってLeaderが複数あることの問題になっていないか?
+%
+raftlogではreadアクセス時のLeader search問題をどう解決しているか。
+%
+nodeがliveしている間はpushがcommitしたことをオンメモリでcacheしている。
+ではnodeがdead->liveする時はどうか?
+}
+
+\subsection{Ack Timing}
+\red{fuga}
+
+\[
+(v \in \mathcal{K}, \mathcal{C}) \to \Diamond (Leader \in \mathcal{C} \to v \in \mathcal{C})
+\]
+
+\subsection{From $\Diamond$ to $\Box$}
+
+\[
+(v \in \mathcal{K}, \mathcal{C}) \to \Box (Leader \in \mathcal{C} \to v \in \mathcal{C})
+\]
+
+
+We need to emphasize that, in order to state this, we need to introduce conditioned election and un/comitted divider.
+
+\begin{description}
+\item[Raft] Take one of the maximal term
+\item[MultiPaxos] Summing received data
+\end{description}
+
+\section{Change Configuration}
+
+\subsection{Accommodate Immigrant}
+hoge
+
+\subsection{Remove Non-Leader}
+fuga
+
+\subsection{Remove Leader}
+piyo
+
+\section{On Implementation: How we transfer user data to the current leader}
+
+We assume a service manager knows all members.
+First of all, it proposes a new configuration to the raft service.
+\begin{itemize}
+\item The case $\text{Raft} \xrightarrow{\text{ack fail}} \text{Service}$, Service re-proposes a new configuration. It was already committed, the cluster do nothing.
+\end{itemize}
+On the initial setting, until after committing and receiving its ack, the manger does not forward user data.
+Thatafter, until after committing and receiving its ack, the manager forward data to \emph{old} or \emph{new}, which???
+Intuitively, we should forward user data to the raft cluster by following \emph{old}.
+What happens if \emph{new} is committed.
+First of all, until the manager receive the ack, we do not shotdown nodes to be removed.
+Therefore, each forward is forward to the leader if receiving node knows the actual leader.
+
+We should consider what happens if a receiving node dow not know the actual lader (and known a fake leader).
+A fake leader cannot succeed to committing a data and thus the system becomes unavailable.
+
+We somewhat need to know an actual working cluster (or randomly hit its).
+At this time, I (author) think it is impossible (if all or almost the notifications from the service drop due to some kinds of network troubles).
+One heuristics is that, on each election, the new leader send back itself information to the service manager.
+
+\end{document}
