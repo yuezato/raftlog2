@@ -187,7 +187,13 @@ impl Io for MockIo {
             assert!(suffix.head.is_newer_or_equal_than(rawlogs.head));
 
             // マージする
-            rawlogs.merge(suffix);
+            // このmerge操作はfrugalos_raftのオンメモリ構造の実装
+            // rawlogs.merge(suffix);
+            // 
+            // frugalos_raftではこれと別にproperにserializeする操作がある
+            // そっちはどうする??
+            rawlogs.over_write(suffix);
+            
         } else {
             // 空のdiskへの書き込みに対応する
             
@@ -565,19 +571,179 @@ fn scenario2() {
             dbg!(rlog2.io().snapshot());
             dbg!(rlog2.io().rawlog());            
 
-            /*
             println!("--- C ---");
             println!("{:?}", rlog3.local_node());
             dbg!(rlog3.local_history());
             dbg!(rlog3.io().snapshot());
             dbg!(rlog3.io().rawlog());
-             */
         }
     }
     
     println!("Bye!");
 }
 
+fn scenario3() {
+    use std::io::Write;
+    
+    println!("[Start] Senario2");
+
+    let mut cluster = BTreeSet::new();
+    let node1 = NodeId::new("nodeA");
+    let node2 = NodeId::new("nodeB");
+    let node3 = NodeId::new("nodeC");
+    
+    cluster.insert(node1.clone());
+    cluster.insert(node2.clone());
+    cluster.insert(node3.clone());
+    let mut io1 = MockIo::new(node1.clone());
+    let mut io2 = MockIo::new(node2.clone());
+    let mut io3 = MockIo::new(node3.clone());
+    
+    let sender1 = io1.copy_sender();
+    let sender2 = io2.copy_sender();
+    let sender3 = io3.copy_sender();
+    
+    {
+        io1.set_channel(node2.clone(), sender2.clone());
+        io1.set_channel(node3.clone(), sender3.clone());
+        
+        io2.set_channel(node1.clone(), sender1.clone());
+        io2.set_channel(node3.clone(), sender3.clone());
+
+        io3.set_channel(node1.clone(), sender1.clone());
+        io3.set_channel(node2.clone(), sender2.clone());
+    }
+    
+    let mut rlog1 = ReplicatedLog::new(node1.clone(), cluster.clone(), io1, &MetricBuilder::new()).unwrap();
+    let mut rlog2 = ReplicatedLog::new(node2, cluster.clone(), io2, &MetricBuilder::new()).unwrap();
+    let mut rlog3 = ReplicatedLog::new(node3, cluster.clone(), io3, &MetricBuilder::new()).unwrap();
+    
+    use std::io;
+    let mut input = String::new();
+
+    /*
+     * Aをリーダーにして、A,B,Cに1メッセージを共有する
+     *
+     * A と {B,C}で切り離す
+     *
+     * A だけにデータを結構蓄える
+     *
+     * {B,C}-groupについてBをリーダーにする
+     * B にデータを蓄える
+     *
+     * {A, B, C}に戻す
+     * A xzzzzz
+     * B xy
+     * C xy
+     *
+     * この状況でBからAにデータを送る
+     * A xyzzzz
+     * になるかどうかを確認する。
+     */
+    
+    loop {
+        input.clear();
+        print!("[user input] > ");
+        io::stdout().flush().unwrap();
+        io::stdin().read_line(&mut input).unwrap();
+
+        let input = input.trim();
+        println!("{}", &input);
+
+        match input {
+            "a" => {
+                unsafe { rlog1.io_mut().invoke_timer(); }
+            }
+            "ban1" => {
+                unsafe {
+                    rlog2.io_mut().set_ban_list(&vec!["nodeA"]);
+                    rlog3.io_mut().set_ban_list(&vec!["nodeA"]);
+                }
+            }
+            "pa" => {
+                rlog1.propose_command(Vec::new());
+            }
+            "b" => {
+                unsafe { rlog2.io_mut().invoke_timer(); }
+            }
+            "c" => {
+                unsafe { rlog3.io_mut().invoke_timer(); }
+            }
+            "S" => {
+                let index = rlog2.local_history().tail().index;
+                dbg!(&index);
+                rlog2.install_snapshot(index, Vec::new());
+            }
+            "prepare" => {
+                unsafe {
+                    rlog1.io_mut().prepare();
+                }
+            }
+            "clear1" => {
+                unsafe {
+                    rlog2.io_mut().clear_ban_list();
+                    rlog3.io_mut().clear_ban_list();
+                }
+            }
+            "heartb" => {
+                rlog2.heartbeat();
+            }
+            "reboot" => {
+                io1 = rlog1.finish();
+
+                dbg!(&io1.snapshot());
+                dbg!(&io1.rawlog());
+                
+                rlog1 = ReplicatedLog::new(node1.clone(), cluster.clone(), io1, &MetricBuilder::new()).unwrap();
+            }
+            _ => {
+                if input != "" {
+                    panic!("wrong input: {}", input);
+                }
+            }
+        }
+
+        for _ in 0..50 {
+            if let Async::Ready(event) = rlog1.poll().unwrap() {
+                println!("[[A]] event {:?}", event);
+            }
+
+            if let Async::Ready(event) = rlog2.poll().unwrap() {
+                println!("[[B]] event {:?}", event);
+            }
+
+            if let Async::Ready(event) = rlog3.poll().unwrap() {
+                // println!("[[C]] event {:?}", event);
+            }
+        }
+
+        {
+            println!("--- A ---");
+            println!("{:?}", rlog1.local_node());
+            dbg!(rlog1.local_history());
+            dbg!(rlog1.io().snapshot());
+            dbg!(rlog1.io().rawlog());
+
+            println!("--- B ---");
+            println!("{:?}", rlog2.local_node());
+            dbg!(rlog2.local_history());
+            dbg!(rlog2.io().snapshot());
+            dbg!(rlog2.io().rawlog());            
+
+            println!("--- C ---");
+            println!("{:?}", rlog3.local_node());
+            dbg!(rlog3.local_history());
+            dbg!(rlog3.io().snapshot());
+            dbg!(rlog3.io().rawlog());
+        }
+    }
+    
+    println!("Bye!");
+}
+
+
 fn main() {
-    scenario2();
+    // scenario2();
+
+    scenario3();
 }

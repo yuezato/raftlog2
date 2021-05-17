@@ -346,6 +346,7 @@ impl LogSuffix {
          *     [ next  ...
          */
         // assert!(next.head.index <= self.tail().index);
+        
         // 今回は以下のように一致している場合だけ考えることにする
         /*
          * ... self )
@@ -389,6 +390,57 @@ impl LogSuffix {
         self.entries.truncate(offset);
 
         self.entries.extend(next.entries.iter().skip(entries_offset).cloned());
+    }
+    pub fn over_write(&mut self, next: &Self) {
+        /*
+         * merge できるのは overlap しているときだけ
+         *  ... self )
+         *     [ next  ...
+         */
+        assert!(next.head.index <= self.tail().index);
+        
+        // overlapしている部分がnext.headからみてどの位置か
+        let entries_offset =
+            if self.head.index <= next.head.index {
+                /*
+                 * [ self ...
+                 *      [ next ...
+                 *      ^--offset=0
+                 */
+                
+                0
+            } else {
+                /*
+                 *      [ self ...
+                 * [ next ...
+                 *  <--->=offset
+                 */
+                self.head.index - next.head.index
+            };
+
+        // overlapしている部分がselfからみてどの位置か
+        let offset = (next.head.index + entries_offset) - self.head.index;
+        let prev_term = if offset == 0 {
+            self.head.prev_term
+        } else {
+            self.entries[offset-1].term()
+        };
+
+        // overlap部分のTermが等しい
+        // と言いたいが実際にはそのprev_termが等しい？？
+        assert!(next.positions().nth(entries_offset).map(|p| p.prev_term) == Some(prev_term));
+        
+        for i in 0..next.entries.len() {
+            if(offset+i < self.entries.len()) {
+                self.entries[offset] = next.entries[i].clone();
+            } else {
+                self.entries.push(next.entries[i].clone());
+            }
+        }
+
+        // https://doc.rust-lang.org/std/vec/struct.Vec.html#method.truncate
+        // self.entries.truncate(offset);
+        // self.entries.extend(next.entries.iter().skip(entries_offset).cloned());
     }
 }
 impl Default for LogSuffix {

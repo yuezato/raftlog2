@@ -1,0 +1,107 @@
+\documentclass{article}
+
+\newcommand{\term}[1]{\textit{prevT}(#1)}
+\newcommand{\cterm}[1]{\textit{curT}(#1)}
+\newcommand{\idx}[1]{\textit{idx}(#1)}
+\usepackage{amsmath}
+
+\makeatletter
+\newcommand{\longxarrow}[1]{%
+  \mathrel{\vphantom{\to}\mathpalette\longx@rrow{#1}}% arrows are bigger than \times
+}
+\newcommand{\longx@rrow}[2]{%
+  \ooalign{\hidewidth$#1\times\m@th$\hidewidth\cr$#1#2\m@th$\cr}%
+}
+\makeatother
+
+\newcommand{\longxrightarrow}{\longxarrow{\longrightarrow}}
+\newcommand{\longxleftarrow}{\longxarrow{\longleftarrow}}
+
+\begin{document}
+
+We consider a cluster with three-nodes named $A$, $B$, and $C$.
+
+(0) Initialize (and see \verb|HistoryRecords|)
+\[
+\begin{array}{l}
+A: [\,] \\
+B: [\,] \\
+C: [\,]
+\end{array}
+\]
+
+(1) Choose $A$ as the leader node.
+\[
+\begin{array}{l}
+\underline{A}: (\term{0}, \idx{0}) (\term{2}, \idx{1}), \\
+B: (\term{0}, \idx{0}) (\term{2}, \idx{1}), \\
+C: (\term{0}, \idx{0}) (\term{2}, \idx{1}), \\
+\end{array}
+\]
+
+(2) We isolate $A$ by shutting $A \longxrightarrow B$ and $A \longxrightarrow C$.
+
+(3) Propose 10-commands to $A$.
+\[
+\begin{array}{l}
+A: (\term{0}, \idx{0}) (\term{2}, \idx{1}), \\
+\qquad \text{log} = (\cterm{2}, \text{c}_1), (\cterm{2}, \text{c}_2), \ldots, (\cterm{2}, \text{c}_{10}) \\
+B: (\term{0}, \idx{0}) (\term{2}, \idx{1}), \\
+C: (\term{0}, \idx{0}) (\term{2}, \idx{1}). \\
+\end{array}
+\]
+
+(4) Choose $B$ as the new leader.
+\[
+\begin{array}{l}
+A: (\term{0}, \idx{0}) (\term{2}, \idx{1}), \\
+\qquad \text{log} = \text{c}_1, \text{c}_2, \ldots, \text{c}_{10} \\
+\underline{B}: (\term{0}, \idx{0}) (\term{2}, \idx{1}), (\term{4}, \idx{2}) \\
+C: (\term{0}, \idx{0}) (\term{2}, \idx{1}). (\term{4}, \idx{2}) \\
+\end{array}
+\]
+
+(5) Take a snapshot in $B$.
+\[
+\begin{array}{l}
+A: (\term{0}, \idx{0}) (\term{2}, \idx{1}), \\
+\qquad \text{log} = \text{c}_1, \text{c}_2, \ldots, \text{c}_{10} \\
+\underline{B}: (\term{0}, \idx{0}) (\term{2}, \idx{1}) (\term{4}, \idx{2}) \\
+\qquad \text{snapshot} = (\term{4}, \idx{2}) \\
+C: (\term{0}, \idx{0}) (\term{2}, \idx{1}) (\term{4}, \idx{2}) \\
+\end{array}
+\]
+
+(6) We make $A$ alive ($A \leftrightarrow B$ and $A \leftrightarrow C$).
+
+(7) Send a heartbeat from $B$ to $A$.
+\[
+\begin{array}{l}
+A: (\term{0}, \idx{0}) (\term{2}, \idx{1}), \\
+\qquad \text{snapshot} = (\term{4}, \idx{2}) \| \text{log} = \text{c}_1, \text{c}_2, \ldots, \text{c}_{10} \\
+\underline{B}: (\term{0}, \idx{0}) (\term{2}, \idx{1}) (\term{4}, \idx{2}) \| \\
+\qquad \text{snapshot} = (\term{4}, \idx{2}) \\
+C: (\term{0}, \idx{0}) (\term{2}, \idx{1}) (\term{4}, \idx{2}) \\
+\end{array}
+\]
+
+(8) Reboot $A$
+\begin{verbatim}
+thread 'main' panicked at 'called `Result::unwrap()` 
+on an `Err` value: Error(TrackableError {
+kind: Other, cause: Some(Cause("assertion failed:
+`self.last_record().head.prev_term < tail.prev_term`;
+last_record.head=LogPosition { prev_term: Term(4), index: LogIndex(2) },
+tail=LogPosition { prev_term: Term(2), index: LogIndex(3) }")),
+
+history: History([
+Location { module_path: "raftlog::log::history", file: "src/log/history.rs",line: 189, message: "" },
+Location { module_path: "raftlog::node_state::common", file: "src/node_state/common/mod.rs", line: 90, message: "" },
+Location { module_path: "raftlog::node_state::loader", file: "src/node_state/loader.rs", line: 70, message: "" },
+Location { module_path: "raftlog::node_state", file: "src/node_state/mod.rs", line: 153, message: "" },
+Location { module_path: "raftlog::replicated_log", file: "src/replicated_log.rs", line: 303, message: "node=Node { id: NodeId(\"nodeA\"), role: Follower, ballot: Ballot { term: Term(4), voted_for: NodeId(\"nodeB\") } }" }]) })',
+src/main.rs:542:55
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+\end{verbatim}
+
+\end{document}
